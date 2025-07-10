@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>ASW List Bulk File Checker</title>
+    <link rel="icon" type="image/x-icon" href="favicon.ico" />
+    <style>
+      :root {
+	--error-highlight-color: rgb(200, 0, 85);
+        --error-text-color: white;
+	--success-highlight-color: rgb(85, 175, 0); 
+	--success-text-color: white;
+
+	--border: 3px solid black;
+
+	font-family: Avant Garde,Avantgarde,Century Gothic,CenturyGothic,AppleGothic,sans-serif;
+      }
+
+      [hidden] {
+        display: none !important;
+      }
+
+      ::highlight(errors) {
+        background-color: var(--error-highlight-color);
+        color: var(--error-text-color);
+      }
+
+      ::highlight(successes) {
+        background-color: var(--success-highlight-color);
+        color: var(--success-text-color);
+      }
+
+      body {
+        background-color: #FFFFF8;
+	margin: 0;
+	height: 100vh;
+      }
+
+      label {
+        font-weight: bold;
+      }
+
+      #container {
+	box-sizing: border-box;
+        width: 100%;
+        height: 100%;
+	margin: 0;
+	padding: 10px;
+
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+      }
+
+      #window {
+        --background-body: #FCFAE1;
+        --background-header: #d00404;
+
+        height: fit-content;
+	max-height: 100%;
+        max-width: 100%;
+
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+
+        border: var(--border);
+        border-radius: 5px;
+        background-color: var(--background-body);
+      }
+
+      #window > * {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        gap: 10px;
+        box-sizing: border-box;
+        width: 100%;
+        padding: 10px;
+        overflow: hidden;
+      }
+
+      #window-header {
+        border-bottom: var(--border);
+        background-color: var(--background-header);
+	color: #ffffff
+      }
+
+      #header {
+        margin: 0;
+        text-align: center;
+      }
+
+      #window-body > * {
+        box-sizing: border-box;
+        width: 100%;
+
+      }
+
+      #window-input {
+        text-align: center;
+      }
+
+
+      .display {
+        margin: 0;
+        padding: 5px;
+
+        box-sizing: border-box;
+        width: 100%;
+        max-height: 25em;
+
+        overflow-y: scroll;
+
+        border: var(--border);
+        background-color: white;
+      }
+
+      #status-display {
+	background-color: var(--error-highlight-color);
+	color: var(--error-text-color);
+      }
+}
+    </style>
+  </head>
+  <body>
+    <div id="container">
+      <div id="window">
+        <div id="window-header">
+          <h1 id="header">ASW List Bulk File Checker</h1>
+        </div>
+        <div id="window-body">
+          <div id="window-input">
+            <input type="file" id="email-text" accept=".csv,.txt" />
+          </div>
+          <div id="window-file-text" hidden>
+            <label for="file-text-display">File:</label>
+            <pre
+              id="file-text-display"
+              class="display"
+              aria-hidden="true"
+            ><code id="file-text"></code></pre>
+          </div>
+          <div id="window-status" hidden>
+            <label for="status-display">Status:</label>
+            <pre
+              id="status-display"
+              class="display"
+              aria-hidden="true"
+            ><code id="status"></code></pre>
+          </div>
+        </div>
+      </div>
+    </div>
+    <script>
+      const input = document.getElementById("email-text");
+      const fileTextDiv = document.getElementById("window-file-text");
+      const fileText = document.getElementById("file-text");
+      const statusDiv = document.getElementById("window-status");
+      const statusPre = document.getElementById("status-display");
+      const status = document.getElementById("status");
+
+      const style = window.getComputedStyle(document.body);
+
+      const reader = new FileReader();
+      reader.onload = printEmails;
+
+      const pattern =
+        /^[\w.!#$%&'*+/=?^`{|}~-]+@[a-z\d](?:[a-z\d-]{0,61}[a-z\d])?(?:\.[a-z\d](?:[a-z\d-]{0,61}[a-z\d])?)*$/i;
+
+      function getErrors(text) {
+        const errors = [];
+        const lines = text.split("\n");
+        for (let i = 0; i < lines.length; i++) {
+          const email = lines[i];
+
+          // Remove line breaks
+          const cleanedEmail = email.replace(/[\r\n]+/gm, "");
+
+          // Check if email is valid
+	  const atSign = email.indexOf("@");
+
+          const isDomainUpperCase = (atSign === -1) ? false : email.substring(atSign).toLowerCase() !== email.substring(atSign);
+	  const hasWhitespace = cleanedEmail.trim() !== cleanedEmail || cleanedEmail === "";
+	  const isMatch = cleanedEmail.match(pattern);
+
+	  // If there is an error with the email, make an error object for it
+          if (isDomainUpperCase ||
+	      hasWhitespace ||
+	      !isMatch) {
+	    const error = {
+              lineNumber: i+1,
+              text: email,
+	      errorText: ""
+            };
+	
+	    if (isDomainUpperCase) error.errorText += "domain is uppercase";
+	    if (hasWhitespace) error.errorText += (error.errorText === "") ? "has extra whitespace" : ", has extra whitespace";
+	    if (!isMatch) error.errorText += (error.errorText === "") ? "invalid format" : ", invalid format";
+
+            errors.push(error);
+          }
+        }
+        return errors;
+      }
+
+
+      function highlightTexts(texts, node, type) {
+	const nodeText = node.textContent;
+	const duplicates = new Set();
+	const start = performance.now();
+        const ranges = texts.reduce((accumulator, text) => {
+	  if (!text) return accumulator;
+	  if (duplicates.has(text)) return accumulator;
+
+          let start = 0;
+	  while (start < nodeText.length) {
+	    const index = nodeText.indexOf(text, start);
+	    if (index === -1) break;
+
+            const range = new Range();  
+            range.setStart(node, index);
+            range.setEnd(node, index + text.length);
+
+            accumulator.push(range);
+	    duplicates.add(text);
+	    start = index + text.length;
+	  }
+          return accumulator;
+        }, []);
+
+	const highlight = new Highlight(...ranges);
+        CSS.highlights.set(type, highlight);
+        
+      }
+
+      function printEmails(string) {
+        const lines = string.split("\n");
+
+        fileText.textContent = "";
+        status.textContent = "";
+	let displayText = "";
+
+	let start = performance.now();
+	const errors = getErrors(string);
+	console.log(`Finding errors took ${performance.now()-start} ms`);
+
+	const texts = errors.map((error) => error.text);
+	const valids = [];      
+	start = performance.now();
+	for (let i = 0; i < lines.length; i++) {
+          let email = lines[i];
+	  if (!texts.includes(email)) {
+	    valids.push(email);
+	  } else {
+
+	  }
+
+          const isLastLine = i === lines.length - 1;
+          email = `${i+1}:\t${email}`;
+	  email = isLastLine ? email : email + "\n";
+	  displayText += email;
+        }
+        fileText.textContent = displayText;
+
+        if (errors.length === 0) {
+          status.textContent = "All emails are valid";
+	  statusPre.style.backgroundColor = style.getPropertyValue("--success-highlight-color");
+	  statusPre.style.color = style.getPropertyValue("--success-text-color");
+        } else {
+	  statusPre.style.backgroundColor = style.getPropertyValue("--error-highlight-color");
+	  statusPre.style.color = style.getPropertyValue("--error-text-color");
+          errors.forEach((error, i) => {
+            const isLastLine = i === errors.length - 1;
+            let string = `Error at line ${error.lineNumber}: ${error.text.trim()}${(error.errorText === "") ? "" : " --- " + error.errorText}`;
+            status.textContent += isLastLine ? string : string + "\n";
+          });
+        }
+	console.log(`Printing file took ${performance.now()-start} ms`);
+
+	if (CSS.highlights) {
+	  start = performance.now();
+          highlightTexts(texts, fileText.firstChild, "errors");
+	  console.log(`Highlighting errors took ${performance.now()-start} ms`);
+
+          start = performance.now();
+          highlightTexts(valids, fileText.firstChild, "successes");
+	  console.log(`Highlighting successes took ${performance.now()-start} ms`);
+	}
+        fileTextDiv.hidden = false;
+        statusDiv.hidden = false;
+      }
+
+      function readFile() {
+        const file = input.files[0];
+
+	if (file) {
+	  file.text().then(printEmails);
+	} else {
+	  // Should never happen
+	  console.error("File not found");
+	}
+      }
+
+      input.onclick = function () {
+        this.value = null;
+      };
+
+      input.onchange = readFile;
+    </script>
+  </body>
+</html>
