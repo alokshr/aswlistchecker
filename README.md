@@ -4,7 +4,7 @@ This is a small HTML file used to do a rough scan of the .csv/.txt files used fo
 
 ![Image of website](thumbnail.png)
 
-This is not meant for use outside of the Solution Center and is only an estimate of what ASW accepts while parsing .csv/.txt files, so please do not take this checker as the truth.
+This is only an estimate of what ASW accepts while parsing .csv/.txt files, so please do not take this checker as the truth.
 
 
 
