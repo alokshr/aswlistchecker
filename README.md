@@ -1,6 +1,6 @@
 # ASW List Bulk File Checker
 
-This is a small HTML file used to do a rough scan of the .csv/.txt files used for ASW list bulk user adds/removes.
+This is a small website used to do a rough scan of the .csv/.txt files used for ASW list bulk user adds/removes.
 
 ![Image of website](thumbnail.png)
 
